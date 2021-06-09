@@ -54,20 +54,31 @@ export class RollHandlerBR2SWSwade extends RollHandler {
     _rollItem(event, actor, actionId, tokenId) {
         //const item = super.getItem(actor, actionId);
         //item.show();
-        game.brsw.create_item_card_fromid(tokenId, actor.id, actionId);
+        game.brsw.create_item_card_from_id(tokenId, actor.id, actionId);
     }
 
     /** @private */
     async _toggleStatus(event, actor, actionId, tokenId) {
-        const update = {data: {status: {}}};
-
+        let updateStatus = true;
         const status = 'is' + actionId.charAt(0).toUpperCase() + actionId.slice(1);
         const existingOnSheet = actor.data.data.status[status];
-        update.data.status[status] = !actor.data.data.status[status];
-
-        await actor.update(update);
         
-        const effect = {"icon":"systems/swade/assets/icons/status/status_" + actionId + ".svg","id":actionId,"label":"SWADE." +  actionId.charAt(0).toUpperCase() + actionId.slice(1)};
+        const effect = foundry.utils.deepClone(CONFIG.SWADE.statusEffects.find(e=> e.id === actionId));
+        effect.label = game.i18n.localize("SWADE." + status.slice(2));
+        effect["flags.core.statusId"] = actionId;
+        
+        if (effect.hasOwnProperty('changes')) {
+            if (effect.changes.find(e=> (e.key === "data.status." + status && e.value === "true"))) {
+                // Support for conditions being handled by active effects on the status effect - if so we don't need to set the value, just the status effect
+                updateStatus = false;
+            }
+        }
+        const update = {data: {status: {}}};
+        if (updateStatus) {
+            update.data.status[status] = !actor.data.data.status[status];
+        }
+        await actor.update(update); // have to do the actor.update even if we're not setting the status value so it will highlight the status in HUD
+        
         const existingOnToken = actor.effects.find(e => e.getFlag("core", "statusId") === actionId);
 
         if (!existingOnToken == !existingOnSheet) {
